@@ -38,7 +38,9 @@ def main() -> None:
 
     # Within each repo: easiest first, then deterministic by instance_id.
     for rows in by_repo.values():
-        rows.sort(key=lambda r: (DIFFICULTY_RANK.get(r["difficulty"], 9), r["instance_id"]))
+        rows.sort(
+            key=lambda r: (DIFFICULTY_RANK.get(r["difficulty"], 9), r["instance_id"])
+        )
 
     selected: list[dict] = []
     # Pass 1: up to PER_REPO_CAP tasks from every repo (breadth).

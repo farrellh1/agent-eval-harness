@@ -88,8 +88,16 @@ def _diff(original: Path, workdir: Path, files: list[str]) -> str:
         if not after.exists():
             continue
         result = subprocess.run(
-            ["diff", "-u", "-L", f"a/{name}", "-L", f"b/{name}",
-             str(before), str(after)],
+            [
+                "diff",
+                "-u",
+                "-L",
+                f"a/{name}",
+                "-L",
+                f"b/{name}",
+                str(before),
+                str(after),
+            ],
             capture_output=True,
             text=True,
         )

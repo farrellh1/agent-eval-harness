@@ -55,8 +55,10 @@ def main() -> None:
         print(f"running task: {task['id']} ...")
         result = run_task(client, args.model, task)
         mark = "PASS" if result["passed"] else "FAIL"
-        print(f"  {mark}  score={result['score']}  steps={result['steps']}"
-              f"  tokens={result['prompt_tokens'] + result['completion_tokens']}")
+        print(
+            f"  {mark}  score={result['score']}  steps={result['steps']}"
+            f"  tokens={result['prompt_tokens'] + result['completion_tokens']}"
+        )
         results.append(result)
 
     passed = sum(r["passed"] for r in results)

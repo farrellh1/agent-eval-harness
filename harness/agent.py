@@ -16,6 +16,7 @@ from .trace import Trace
 
 MAX_STEPS = 15
 
+
 def build_system_prompt(workdir: Path) -> str:
     """Build the system prompt for a run, anchored to the real working directory.
 
@@ -42,8 +43,9 @@ class AgentResult:
     trace: Trace
 
 
-def run_agent(client, model: str, workdir: Path, task_prompt: str,
-              max_steps: int = MAX_STEPS) -> AgentResult:
+def run_agent(
+    client, model: str, workdir: Path, task_prompt: str, max_steps: int = MAX_STEPS
+) -> AgentResult:
     """Run the agent loop in `workdir` until it stops or hits `max_steps`."""
     tools = Toolbox(Path(workdir))
     tool_mapping = {
@@ -90,10 +92,12 @@ def run_agent(client, model: str, workdir: Path, task_prompt: str,
 
             result = tool_mapping[name](**args)
             trace.add(step, "tool_result", name=name, content=result)
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                }
+            )
 
     return AgentResult(False, max_steps, prompt_tokens, completion_tokens, trace)

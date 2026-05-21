@@ -45,7 +45,9 @@ class Toolbox:
         # Put the harness's own interpreter dir first on PATH so `python` and
         # `pytest` resolve to the same environment the harness runs in.
         env = os.environ.copy()
-        env["PATH"] = str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
+        env["PATH"] = (
+            str(Path(sys.executable).parent) + os.pathsep + env.get("PATH", "")
+        )
         try:
             result = subprocess.run(
                 command,
@@ -75,7 +77,10 @@ TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path relative to the project root."},
+                    "path": {
+                        "type": "string",
+                        "description": "Path relative to the project root.",
+                    },
                 },
                 "required": ["path"],
             },
@@ -89,7 +94,10 @@ TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path": {"type": "string", "description": "Path relative to the project root."},
+                    "path": {
+                        "type": "string",
+                        "description": "Path relative to the project root.",
+                    },
                     "content": {"type": "string", "description": "Content to write."},
                 },
                 "required": ["path", "content"],
@@ -104,7 +112,10 @@ TOOL_SCHEMAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {"type": "string", "description": "The bash command to run."},
+                    "command": {
+                        "type": "string",
+                        "description": "The bash command to run.",
+                    },
                 },
                 "required": ["command"],
             },
