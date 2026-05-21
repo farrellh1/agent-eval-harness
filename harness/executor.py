@@ -8,6 +8,7 @@ tools, different environment.
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -83,6 +84,128 @@ class LocalExecutor:
                 env=env,
                 capture_output=True,
                 shell=True,
+                text=True,
+                timeout=COMMAND_TIMEOUT,
+            )
+            return result.returncode, result.stdout, result.stderr
+        except subprocess.TimeoutExpired:
+            return 124, "", f"command timed out after {COMMAND_TIMEOUT}s: {command}"
+
+
+class DockerExecutor:
+    """Runs the agent's tools inside a Docker container.
+
+    Used for real SWE-bench tasks, whose repo and dependencies live in a
+    prebuilt per-task image. Use it as a context manager: the container is
+    started on enter and force-removed on exit.
+    """
+
+    def __init__(
+        self,
+        image: str,
+        workdir: str = "/testbed",
+        platform: str = "linux/amd64",
+    ):
+        self.image = image
+        self._workdir = workdir
+        self.platform = platform
+        self.container: str | None = None
+
+    @property
+    def workdir(self) -> str:
+        return self._workdir
+
+    def __enter__(self) -> "DockerExecutor":
+        """Start a detached container, kept alive by `sleep infinity`."""
+        result = subprocess.run(
+            [
+                "docker",
+                "run",
+                "-d",
+                "--platform",
+                self.platform,
+                "--entrypoint",
+                "sleep",
+                self.image,
+                "infinity",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.container = result.stdout.strip()
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        if self.container:
+            subprocess.run(
+                ["docker", "rm", "-f", self.container],
+                capture_output=True,
+                text=True,
+            )
+            self.container = None
+
+    def read_file(self, path: str) -> str:
+        result = subprocess.run(
+            ["docker", "exec", "-w", self._workdir, self.container, "cat", path],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise FileNotFoundError(result.stderr.strip() or path)
+        return result.stdout
+
+    def write_file(self, path: str, content: str) -> None:
+        parent = os.path.dirname(path)
+        if parent:
+            subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "-w",
+                    self._workdir,
+                    self.container,
+                    "mkdir",
+                    "-p",
+                    parent,
+                ],
+                capture_output=True,
+                text=True,
+            )
+        # Stream the content in over stdin, so no quoting of `content` is needed.
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "-i",
+                "-w",
+                self._workdir,
+                self.container,
+                "sh",
+                "-c",
+                f"cat > {shlex.quote(path)}",
+            ],
+            input=content,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise OSError(result.stderr.strip() or path)
+
+    def run(self, command: str) -> tuple[int, str, str]:
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "exec",
+                    "-w",
+                    self._workdir,
+                    self.container,
+                    "bash",
+                    "-c",
+                    command,
+                ],
+                capture_output=True,
                 text=True,
                 timeout=COMMAND_TIMEOUT,
             )
