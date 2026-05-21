@@ -1,0 +1,6 @@
+{
+  "id": "factorial",
+  "prompt": "This repository has a failing test. Run the tests to see the failure, find the bug in buggy.py, and fix it so all tests pass. Do not edit test_buggy.py.",
+  "test_command": "{python} -m pytest -q",
+  "editable_files": ["buggy.py"]
+}

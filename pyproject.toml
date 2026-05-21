@@ -1,0 +1,13 @@
+[project]
+name = "agent-eval-harness"
+version = "0.1.0"
+description = "An audit and evaluation harness for test-fixing coding agents, built on SWE-bench Verified."
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=2.0",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+swebench = ["datasets>=3.0"]
