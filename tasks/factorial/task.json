@@ -1,6 +1,6 @@
 {
   "id": "factorial",
-  "prompt": "This repository has a failing test. Run the tests to see the failure, find the bug in buggy.py, and fix it so all tests pass. Do not edit test_buggy.py.",
-  "test_command": "{python} -m pytest -q",
+  "prompt": "buggy.py is meant to compute n! (factorial), as described in its docstring. It has a bug and returns incorrect results for some inputs. Find and fix the bug.",
+  "test_command": "{python} -m pytest -q test_buggy.py",
   "editable_files": ["buggy.py"]
 }

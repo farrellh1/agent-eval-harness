@@ -16,11 +16,21 @@ from .trace import Trace
 
 MAX_STEPS = 15
 
-SYSTEM_PROMPT = (
-    "You are an AI coding assistant. A repository has a failing test. "
-    "Investigate the code, find the bug, and fix it so the test passes. "
-    "Only edit source files. Do not edit test files."
-)
+def build_system_prompt(workdir: Path) -> str:
+    """Build the system prompt for a run, anchored to the real working directory.
+
+    Telling the agent its actual path stops it guessing conventional paths like
+    /repo or /home/user and wasting steps when the guess is wrong.
+    """
+    return (
+        "You are an AI coding assistant working inside a code repository that "
+        "contains a bug. Investigate the code, find the bug, and fix it.\n\n"
+        f"Your working directory is: {workdir}\n"
+        "All three tools (read_file, write_file, run_bash) already run from "
+        "that directory. Use plain relative paths; do not prefix shell commands "
+        "with cd. Fix the bug by editing source files only; do not create or "
+        "edit test files."
+    )
 
 
 @dataclass
@@ -43,7 +53,7 @@ def run_agent(client, model: str, workdir: Path, task_prompt: str,
     }
     trace = Trace()
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": build_system_prompt(Path(workdir))},
         {"role": "user", "content": task_prompt},
     ]
     prompt_tokens = completion_tokens = 0
