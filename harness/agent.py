@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from pathlib import Path
 
+from .executor import Executor
 from .tools import TOOL_SCHEMAS, Toolbox
 from .trace import Trace
 
 MAX_STEPS = 15
 
 
-def build_system_prompt(workdir: Path) -> str:
+def build_system_prompt(workdir: str) -> str:
     """Build the system prompt for a run, anchored to the real working directory.
 
     Telling the agent its actual path stops it guessing conventional paths like
@@ -44,10 +44,10 @@ class AgentResult:
 
 
 def run_agent(
-    client, model: str, workdir: Path, task_prompt: str, max_steps: int = MAX_STEPS
+    client, model: str, executor: Executor, task_prompt: str, max_steps: int = MAX_STEPS
 ) -> AgentResult:
-    """Run the agent loop in `workdir` until it stops or hits `max_steps`."""
-    tools = Toolbox(Path(workdir))
+    """Run the agent loop via `executor` until it stops or hits `max_steps`."""
+    tools = Toolbox(executor)
     tool_mapping = {
         "read_file": tools.read_file,
         "write_file": tools.write_file,
@@ -55,7 +55,7 @@ def run_agent(
     }
     trace = Trace()
     messages = [
-        {"role": "system", "content": build_system_prompt(Path(workdir))},
+        {"role": "system", "content": build_system_prompt(executor.workdir)},
         {"role": "user", "content": task_prompt},
     ]
     prompt_tokens = completion_tokens = 0

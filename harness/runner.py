@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from .agent import run_agent
+from .executor import LocalExecutor
 from .scorer import score_task
 
 
@@ -46,7 +47,7 @@ def run_task(client, model: str, task: dict) -> dict:
             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
         )
 
-        agent = run_agent(client, model, workdir, task["prompt"])
+        agent = run_agent(client, model, LocalExecutor(workdir), task["prompt"])
 
         # The agent has stopped: only now do the grading tests touch the workdir.
         _apply_tests(task_dir / "tests", workdir)
