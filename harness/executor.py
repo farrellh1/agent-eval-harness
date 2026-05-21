@@ -105,10 +105,14 @@ class DockerExecutor:
         image: str,
         workdir: str = "/testbed",
         platform: str = "linux/amd64",
+        env_path: str | None = None,
     ):
         self.image = image
         self._workdir = workdir
         self.platform = platform
+        # Dir to prepend to PATH for every command, e.g. a conda env's bin.
+        # SWE-bench images install deps into a `testbed` env, not base.
+        self.env_path = env_path
         self.container: str | None = None
 
     @property
@@ -193,6 +197,9 @@ class DockerExecutor:
             raise OSError(result.stderr.strip() or path)
 
     def run(self, command: str) -> tuple[int, str, str]:
+        # Prepend the task's environment (e.g. a conda env) to PATH if set.
+        if self.env_path:
+            command = f'export PATH="{self.env_path}:$PATH"\n{command}'
         try:
             result = subprocess.run(
                 [
