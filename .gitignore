@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 node_modules/
+
+# Generated eval output; commit a specific run with `git add -f` when needed.
+runs/

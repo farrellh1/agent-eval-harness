@@ -11,7 +11,6 @@ after it stops, and the result is a plain dict for runs/*.json.
 from __future__ import annotations
 
 import json
-import shlex
 import shutil
 import subprocess
 import sys
@@ -22,7 +21,8 @@ from pathlib import Path
 from .agent import run_agent
 from .executor import DockerExecutor, LocalExecutor
 from .scorer import score_swebench, score_task
-from .swebench import TESTBED_ENV_PATH, docker_platform, instance_image
+from .swebench import DOCKER_PLATFORM, TESTBED_ENV_PATH, instance_image
+from .testspec import TestRun, test_files_from_patch, test_spec_for
 
 TEST_TIMEOUT = 600  # seconds, for running a SWE-bench task's graded tests
 
@@ -110,23 +110,32 @@ def _diff(original: Path, workdir: Path, files: list[str]) -> str:
     return "\n".join(chunks)
 
 
-def run_swebench_task(client, model: str, task: dict) -> dict:
+def run_swebench_task(
+    client, model: str, task: dict, cleanup_image: bool = True
+) -> dict:
     """Run one SWE-bench task in its Docker container, end to end.
 
     The agent works in /testbed (the repo at its base commit) with only the
     problem statement. After it stops, the held-back grading tests (test_patch)
     are applied and run - the agent never saw what scores it.
+
+    `cleanup_image` removes the task's (large) Docker image afterwards, unless
+    the machine already had it - see DockerExecutor.
     """
     instance_id = task["instance_id"]
     fail_to_pass = json.loads(task["FAIL_TO_PASS"])
     pass_to_pass = json.loads(task["PASS_TO_PASS"])
+    # How this repo's tests run and get scored - pytest for most, but django
+    # and sympy need their own runner (see harness.testspec).
+    spec = test_spec_for(task["repo"])
     started = time.time()
 
     with DockerExecutor(
         instance_image(instance_id),
         workdir="/testbed",
-        platform=docker_platform(),
+        platform=DOCKER_PLATFORM,
         env_path=TESTBED_ENV_PATH,
+        remove_image=cleanup_image,
     ) as ex:
         agent = run_agent(client, model, ex, task["problem_statement"])
 
@@ -137,11 +146,12 @@ def run_swebench_task(client, model: str, task: dict) -> dict:
         ex.write_file("/tmp/test_patch.diff", task["test_patch"])
         apply_rc = ex.run("git apply -v /tmp/test_patch.diff")[0]
 
-        node_ids = " ".join(shlex.quote(t) for t in fail_to_pass + pass_to_pass)
-        test_cmd = f"python -m pytest -rA --tb=no -p no:cacheprovider {node_ids}"
+        test_files = test_files_from_patch(task["test_patch"])
+        test_run = TestRun(fail_to_pass + pass_to_pass, test_files)
+        test_cmd = spec.build_command(test_run)
         _, out, err = ex.run(test_cmd, timeout=TEST_TIMEOUT)
 
-    score = score_swebench(out + err, fail_to_pass, pass_to_pass)
+    score = score_swebench(out + err, fail_to_pass, pass_to_pass, parse=spec.parse)
 
     return {
         "task_id": instance_id,
@@ -158,6 +168,7 @@ def run_swebench_task(client, model: str, task: dict) -> dict:
         "duration_s": round(time.time() - started, 1),
         "diff": agent_diff,
         "patch_applied": apply_rc == 0,
+        "test_runner": spec.name,
         "score_detail": score.detail,
         "trace": agent.trace.to_list(),
     }

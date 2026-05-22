@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -82,11 +83,18 @@ def parse_pytest_outcomes(output: str) -> dict[str, str]:
 
 
 def score_swebench(
-    output: str, fail_to_pass: list[str], pass_to_pass: list[str]
+    output: str,
+    fail_to_pass: list[str],
+    pass_to_pass: list[str],
+    parse: Callable[[str], dict[str, str]] = parse_pytest_outcomes,
 ) -> SweScore:
     """Grade a SWE-bench run the way SWE-bench does: every FAIL_TO_PASS test
-    must now pass, and every PASS_TO_PASS test must still pass."""
-    outcomes = parse_pytest_outcomes(output)
+    must now pass, and every PASS_TO_PASS test must still pass.
+
+    `parse` turns raw test output into a {node id: outcome} map. It defaults to
+    pytest's format; a repo with its own runner passes its own parser instead
+    (see harness.testspec)."""
+    outcomes = parse(output)
 
     ftp = {t: outcomes.get(t) == "PASSED" for t in fail_to_pass}
     ptp_passed = sum(outcomes.get(t) == "PASSED" for t in pass_to_pass)

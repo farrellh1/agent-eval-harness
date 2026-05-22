@@ -106,6 +106,7 @@ class DockerExecutor:
         workdir: str = "/testbed",
         platform: str = "linux/amd64",
         env_path: str | None = None,
+        remove_image: bool = False,
     ):
         self.image = image
         self._workdir = workdir
@@ -113,7 +114,12 @@ class DockerExecutor:
         # Dir to prepend to PATH for every command, e.g. a conda env's bin.
         # SWE-bench images install deps into a `testbed` env, not base.
         self.env_path = env_path
+        # If set, remove the image on exit - but only when this run pulled it
+        # (see __enter__). SWE-bench images are large; a long run would
+        # otherwise fill the disk.
+        self.remove_image = remove_image
         self.container: str | None = None
+        self._pulled_image = False
 
     @property
     def workdir(self) -> str:
@@ -121,6 +127,14 @@ class DockerExecutor:
 
     def __enter__(self) -> "DockerExecutor":
         """Start a detached container, kept alive by `sleep infinity`."""
+        # Note whether the image is already local. `docker run` pulls it if
+        # not; cleanup on exit then removes only what this run brought in.
+        inspect = subprocess.run(
+            ["docker", "image", "inspect", self.image],
+            capture_output=True,
+            text=True,
+        )
+        self._pulled_image = inspect.returncode != 0
         result = subprocess.run(
             [
                 "docker",
@@ -140,7 +154,7 @@ class DockerExecutor:
         self.container = result.stdout.strip()
         return self
 
-    def __exit__(self, *_exc) -> None:
+    def __exit__(self, *_) -> None:
         if self.container:
             subprocess.run(
                 ["docker", "rm", "-f", self.container],
@@ -148,6 +162,14 @@ class DockerExecutor:
                 text=True,
             )
             self.container = None
+        # Remove the image only if cleanup is on and this run pulled it -
+        # never delete an image the machine already had.
+        if self.remove_image and self._pulled_image:
+            subprocess.run(
+                ["docker", "rmi", self.image],
+                capture_output=True,
+                text=True,
+            )
 
     def read_file(self, path: str) -> str:
         result = subprocess.run(
