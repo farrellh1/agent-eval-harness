@@ -1,13 +1,13 @@
 """CLI entry point for the agent eval harness.
 
 Usage:
-    python cli.py run                   # every toy task in tasks/
-    python cli.py run --task factorial  # one toy task
-    python cli.py swebench              # every SWE-bench task in the corpus
-    python cli.py swebench --task <id>  # one SWE-bench task by instance_id
+    python cli.py run                        # every toy task in tasks/
+    python cli.py swebench                   # every SWE-bench task
+    python cli.py swebench --task <id> ...   # only these tasks
+    python cli.py swebench --task <id> --update runs/<file>.json
 
-Each invocation writes one JSON file to runs/ - the contract the Phase 2
-dashboard reads.
+Each run writes a JSON file to runs/ - the contract the Phase 2 dashboard
+reads. --update merges re-run tasks back into an existing run file.
 """
 
 from __future__ import annotations
@@ -38,14 +38,14 @@ def _client() -> OpenAI:
     return OpenAI(api_key=os.environ.get("API_KEY"), base_url=DEEPSEEK_BASE_URL)
 
 
-def _run_local(client, model: str, only: str | None, save) -> list[dict]:
+def _run_local(client, model: str, only: list[str] | None, save) -> list[dict]:
     task_dirs = sorted(
         d for d in TASKS_DIR.iterdir() if d.is_dir() and (d / "task.json").exists()
     )
     if only:
-        task_dirs = [d for d in task_dirs if d.name == only]
+        task_dirs = [d for d in task_dirs if d.name in only]
         if not task_dirs:
-            raise SystemExit(f"no task with id '{only}'")
+            raise SystemExit(f"no task matching {only}")
 
     results = []
     for task_dir in task_dirs:
@@ -62,13 +62,13 @@ def _run_local(client, model: str, only: str | None, save) -> list[dict]:
 
 
 def _run_swebench(
-    client, model: str, only: str | None, save, cleanup_image: bool
+    client, model: str, only: list[str] | None, save, cleanup_image: bool
 ) -> list[dict]:
     tasks = load_swebench_tasks(CORPUS)
     if only:
-        tasks = [t for t in tasks if t["instance_id"] == only]
+        tasks = [t for t in tasks if t["instance_id"] in only]
         if not tasks:
-            raise SystemExit(f"no SWE-bench task with instance_id '{only}'")
+            raise SystemExit(f"no SWE-bench task matching {only}")
 
     results = []
     for task in tasks:
@@ -120,7 +120,7 @@ def main() -> None:
         ("swebench", "run SWE-bench Verified tasks"),
     ]:
         p = sub.add_parser(name, help=help_text)
-        p.add_argument("--task", help="run only this task / instance id")
+        p.add_argument("--task", nargs="+", help="run only these task / instance ids")
         p.add_argument("--model", default=DEFAULT_MODEL, help="model to evaluate")
         if name == "swebench":
             p.add_argument(
@@ -128,17 +128,34 @@ def main() -> None:
                 action="store_true",
                 help="keep each task's Docker image instead of removing it",
             )
+            p.add_argument(
+                "--update",
+                metavar="RUN_FILE",
+                help="merge results into this existing run file",
+            )
     args = parser.parse_args()
 
     client = _client()
-    run_id = time.strftime("run-%Y%m%d-%H%M%S")
-    created_at = time.strftime("%Y-%m-%dT%H:%M:%S")
-    RUNS_DIR.mkdir(exist_ok=True)
-    out_path = RUNS_DIR / f"{run_id}.json"
 
-    def save(results: list[dict]) -> None:
-        """Write the run file. Called after every task, so an interrupted run
-        still leaves a complete record of the tasks that did finish."""
+    # --update re-runs tasks into an existing run file; otherwise start fresh.
+    update_path = getattr(args, "update", None)
+    if update_path:
+        out_path = Path(update_path)
+        existing = json.loads(out_path.read_text())
+        run_id = existing["run_id"]
+        created_at = existing["created_at"]
+        base = {r["task_id"]: r for r in existing["results"]}
+    else:
+        run_id = time.strftime("run-%Y%m%d-%H%M%S")
+        created_at = time.strftime("%Y-%m-%dT%H:%M:%S")
+        out_path = RUNS_DIR / f"{run_id}.json"
+        base = {}
+    RUNS_DIR.mkdir(exist_ok=True)
+
+    def save(new_results: list[dict]) -> None:
+        """Write the run file after every task. New results merge into the
+        existing ones by task id, so --update replaces only what was re-run."""
+        results = list((base | {r["task_id"]: r for r in new_results}).values())
         run = {
             "run_id": run_id,
             "model": args.model,
@@ -157,10 +174,9 @@ def main() -> None:
         )
 
     if results:
-        passed = sum(r["passed"] for r in results)
-        print(
-            f"\n{passed}/{len(results)} tasks passed  ->  {out_path.relative_to(ROOT)}"
-        )
+        final = list((base | {r["task_id"]: r for r in results}).values())
+        passed = sum(r["passed"] for r in final)
+        print(f"\n{passed}/{len(final)} tasks passed  ->  {out_path}")
 
 
 if __name__ == "__main__":
