@@ -27,10 +27,10 @@ def build_system_prompt(workdir: str) -> str:
         "You are an AI coding assistant working inside a code repository that "
         "contains a bug. Investigate the code, find the bug, and fix it.\n\n"
         f"Your working directory is: {workdir}\n"
-        "All three tools (read_file, write_file, run_bash) already run from "
-        "that directory. Use plain relative paths; do not prefix shell commands "
-        "with cd. Fix the bug by editing source files only; do not create or "
-        "edit test files."
+        "All four tools (read_file, write_file, edit_file, run_bash) already "
+        "run from that directory. Use plain relative paths; do not prefix shell "
+        "commands with cd. Fix the bug by editing source files only; do not "
+        "create or edit test files."
     )
 
 
@@ -43,6 +43,28 @@ class AgentResult:
     trace: Trace
 
 
+def _dispatch_tool(tool_mapping: dict, name: str, raw_args: str) -> str:
+    """Run one tool call, turning any agent mistake into an error string.
+
+    The agent is the system under test: a hallucinated tool name, malformed
+    JSON, or wrong arguments is a result to record and feed back to the model -
+    never a crash of the harness measuring it.
+    """
+    tool = tool_mapping.get(name)
+    if tool is None:
+        return (
+            f"ERROR: unknown tool '{name}'. Available tools: {', '.join(tool_mapping)}."
+        )
+    try:
+        args = json.loads(raw_args)
+    except json.JSONDecodeError as e:
+        return f"ERROR: arguments for '{name}' were not valid JSON: {e}"
+    try:
+        return tool(**args)
+    except TypeError as e:
+        return f"ERROR: bad arguments for '{name}': {e}"
+
+
 def run_agent(
     client, model: str, executor: Executor, task_prompt: str, max_steps: int = MAX_STEPS
 ) -> AgentResult:
@@ -51,6 +73,7 @@ def run_agent(
     tool_mapping = {
         "read_file": tools.read_file,
         "write_file": tools.write_file,
+        "edit_file": tools.edit_file,
         "run_bash": tools.run_bash,
     }
     trace = Trace()
@@ -87,10 +110,10 @@ def run_agent(
 
         for tool_call in message.tool_calls:
             name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            trace.add(step, "tool_call", name=name, content=json.dumps(args))
+            raw_args = tool_call.function.arguments
+            trace.add(step, "tool_call", name=name, content=raw_args)
 
-            result = tool_mapping[name](**args)
+            result = _dispatch_tool(tool_mapping, name, raw_args)
             trace.add(step, "tool_result", name=name, content=result)
             messages.append(
                 {
