@@ -5,6 +5,7 @@ Usage:
     python cli.py swebench                   # every SWE-bench task
     python cli.py swebench --task <id> ...   # only these tasks
     python cli.py swebench --task <id> --update runs/<file>.json
+    python cli.py audit                      # flag task-quality issues in the corpus
 
 Each run writes a JSON file to runs/ - the contract the Phase 2 dashboard
 reads. --update merges re-run tasks back into an existing run file.
@@ -21,6 +22,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from harness.audit import audit_corpus, corpus_profile
 from harness.runner import load_task, run_swebench_task, run_task
 from harness.swebench import load_swebench_tasks
 
@@ -28,6 +30,7 @@ ROOT = Path(__file__).parent
 TASKS_DIR = ROOT / "tasks"
 RUNS_DIR = ROOT / "runs"
 CORPUS = ROOT / "corpus" / "swe_bench_verified_subset.jsonl"
+AUDIT_OUT = ROOT / "corpus" / "audit.json"
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-pro"
@@ -112,9 +115,42 @@ def _error_result(task_id: str, error: Exception) -> dict:
     }
 
 
+def _audit() -> None:
+    """Audit the corpus for task-quality issues; print and write corpus/audit.json."""
+    tasks = load_swebench_tasks(CORPUS)
+    audits = audit_corpus(tasks)
+    profile = corpus_profile(tasks)
+    flagged = [a for a in audits if not a.clean]
+
+    print(f"audited {len(tasks)} tasks  ->  {len(flagged)} flagged\n")
+    for a in flagged:
+        for flag in a.flags:
+            print(f"  [{flag.category}]  {a.task_id}")
+            print(f"      {flag.detail}")
+    print("\ncorpus profile (min / median / max):")
+    for metric, s in profile.items():
+        print(f"  {metric:18} {s['min']:>5} /{s['median']:>5} /{s['max']:>6}")
+
+    AUDIT_OUT.write_text(
+        json.dumps(
+            {
+                "corpus": CORPUS.name,
+                "audited_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                "tasks_total": len(tasks),
+                "tasks_flagged": len(flagged),
+                "profile": profile,
+                "audits": [a.to_dict() for a in audits],
+            },
+            indent=2,
+        )
+    )
+    print(f"\nwrote {AUDIT_OUT.relative_to(ROOT)}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Agent eval harness")
     sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("audit", help="flag task-quality issues in the SWE-bench corpus")
     for name, help_text in [
         ("run", "run the toy-task suite"),
         ("swebench", "run SWE-bench Verified tasks"),
@@ -134,6 +170,10 @@ def main() -> None:
                 help="merge results into this existing run file",
             )
     args = parser.parse_args()
+
+    if args.command == "audit":
+        _audit()
+        return
 
     client = _client()
 

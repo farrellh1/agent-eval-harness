@@ -1,0 +1,155 @@
+{
+  "corpus": "swe_bench_verified_subset.jsonl",
+  "audited_at": "2026-05-22T22:44:05",
+  "tasks_total": 25,
+  "tasks_flagged": 5,
+  "profile": {
+    "fail_to_pass": {
+      "min": 1,
+      "median": 1,
+      "max": 438
+    },
+    "pass_to_pass": {
+      "min": 5,
+      "median": 63,
+      "max": 1432
+    },
+    "gold_patch_lines": {
+      "min": 2,
+      "median": 4,
+      "max": 15
+    },
+    "problem_words": {
+      "min": 35,
+      "median": 210,
+      "max": 648
+    }
+  },
+  "audits": [
+    {
+      "task_id": "astropy__astropy-14309",
+      "flags": []
+    },
+    {
+      "task_id": "astropy__astropy-14995",
+      "flags": []
+    },
+    {
+      "task_id": "django__django-10097",
+      "flags": [
+        {
+          "category": "broad",
+          "detail": "438 FAIL_TO_PASS tests - a focused bug fix rarely flips this many; the task is a sweeping change or mis-scoped"
+        }
+      ]
+    },
+    {
+      "task_id": "django__django-10880",
+      "flags": []
+    },
+    {
+      "task_id": "django__django-10914",
+      "flags": []
+    },
+    {
+      "task_id": "django__django-10999",
+      "flags": []
+    },
+    {
+      "task_id": "matplotlib__matplotlib-13989",
+      "flags": [
+        {
+          "category": "broken-tests",
+          "detail": "2 of 412 test ids are corrupt (truncated or progress markers): ['lib/matplotlib/tests/test_axes.py::test_stem[png-w/', 'lib/matplotlib/tests/test_axes.py::test_stem[png-w/o']"
+        }
+      ]
+    },
+    {
+      "task_id": "matplotlib__matplotlib-20676",
+      "flags": []
+    },
+    {
+      "task_id": "mwaskom__seaborn-3069",
+      "flags": []
+    },
+    {
+      "task_id": "mwaskom__seaborn-3187",
+      "flags": []
+    },
+    {
+      "task_id": "pallets__flask-5014",
+      "flags": []
+    },
+    {
+      "task_id": "psf__requests-1142",
+      "flags": []
+    },
+    {
+      "task_id": "psf__requests-1724",
+      "flags": []
+    },
+    {
+      "task_id": "pydata__xarray-4075",
+      "flags": []
+    },
+    {
+      "task_id": "pydata__xarray-4094",
+      "flags": []
+    },
+    {
+      "task_id": "pylint-dev__pylint-4970",
+      "flags": []
+    },
+    {
+      "task_id": "pylint-dev__pylint-6903",
+      "flags": []
+    },
+    {
+      "task_id": "pytest-dev__pytest-10081",
+      "flags": [
+        {
+          "category": "broken-tests",
+          "detail": "3 of 64 test ids are corrupt (truncated or progress markers): ['testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip.py-1', 'testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_class.py-1', 'testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_module.py-1']"
+        }
+      ]
+    },
+    {
+      "task_id": "pytest-dev__pytest-5262",
+      "flags": [
+        {
+          "category": "broken-tests",
+          "detail": "1 of 109 test ids are corrupt (truncated or progress markers): ['[100%]']"
+        }
+      ]
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-11310",
+      "flags": []
+    },
+    {
+      "task_id": "scikit-learn__scikit-learn-12585",
+      "flags": [
+        {
+          "category": "contaminated",
+          "detail": "the problem statement contains 1 line(s) of the gold solution, e.g. \"elif not hasattr(estimator, 'get_params') or isinstance(estimator, type):\" - the agent can copy the answer"
+        }
+      ]
+    },
+    {
+      "task_id": "sphinx-doc__sphinx-10323",
+      "flags": []
+    },
+    {
+      "task_id": "sphinx-doc__sphinx-10435",
+      "flags": []
+    },
+    {
+      "task_id": "sympy__sympy-12096",
+      "flags": []
+    },
+    {
+      "task_id": "sympy__sympy-12481",
+      "flags": []
+    }
+  ]
+}
