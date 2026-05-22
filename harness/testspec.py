@@ -40,23 +40,24 @@ def _pytest_command(run: TestRun) -> str:
 PYTEST_SPEC = TestSpec("pytest", _pytest_command, parse_pytest_outcomes)
 
 
-# A django node id `test_x (a.b.Cls)` is really the test label `a.b.Cls.test_x`.
+# A django node id is `test_x (module.path.Class)`.
 _DJANGO_NODE = re.compile(r"^(\S+) \(([\w.]+)\)$")
 
 
-def _django_label(node_id: str) -> str:
-    """Turn a django node id into a runtests.py test label."""
+def _django_module(node_id: str) -> str:
+    """The test module of a django node id: `test_x (a.b.Cls)` -> `a.b`."""
     m = _DJANGO_NODE.match(node_id)
     if not m:
         return node_id
-    name, dotted_path = m.group(1), m.group(2)
-    return f"{dotted_path}.{name}"
+    return m.group(2).rsplit(".", 1)[0]
 
 
 def _django_command(run: TestRun) -> str:
-    # `--verbosity 2` makes django print one line per test (what the parser
-    # reads); `--parallel 1` keeps those lines in order instead of interleaved.
-    labels = " ".join(shlex.quote(_django_label(n)) for n in run.node_ids)
+    # Run whole modules (deduplicated): the full list of individual test labels
+    # for a large task overflows the OS argument-length limit. Extra tests this
+    # pulls in are ignored by scoring. `--verbosity 2` => one line per test.
+    modules = dict.fromkeys(_django_module(n) for n in run.node_ids)
+    labels = " ".join(shlex.quote(m) for m in modules)
     return (
         "python tests/runtests.py --verbosity 2 "
         f"--settings=test_sqlite --parallel 1 {labels}"

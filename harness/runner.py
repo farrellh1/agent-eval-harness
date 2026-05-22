@@ -11,6 +11,7 @@ after it stops, and the result is a plain dict for runs/*.json.
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -29,7 +30,7 @@ from .testspec import (
     test_spec_for,
 )
 
-TEST_TIMEOUT = 600  # seconds, for running a SWE-bench task's graded tests
+TEST_TIMEOUT = 1800  # seconds; django's largest task runs thousands of tests
 
 
 def load_task(task_dir: Path) -> dict:
@@ -150,11 +151,16 @@ def run_swebench_task(
         # Capture the agent's patch before the grading tests touch the repo.
         agent_diff = ex.run("git diff")[1]
 
+        # Revert any agent edits to the test files, so the held-back grading
+        # tests apply cleanly and the agent cannot influence its own score.
+        test_files = test_files_from_patch(task["test_patch"])
+        if test_files:
+            ex.run("git checkout -- " + " ".join(shlex.quote(f) for f in test_files))
+
         # Apply the held-back grading tests, then run every graded test at once.
         ex.write_file("/tmp/test_patch.diff", task["test_patch"])
         apply_rc, _, apply_err = ex.run("git apply -v /tmp/test_patch.diff")
 
-        test_files = test_files_from_patch(task["test_patch"])
         test_run = TestRun(fail_to_pass + pass_to_pass, test_files)
         test_cmd = spec.build_command(test_run)
         _, out, err = ex.run(test_cmd, timeout=TEST_TIMEOUT)
