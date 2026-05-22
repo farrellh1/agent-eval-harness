@@ -124,7 +124,12 @@ DJANGO_SPEC = TestSpec("django", _django_command, parse_django_outcomes)
 
 def _sympy_command(run: TestRun) -> str:
     files = " ".join(shlex.quote(f) for f in run.test_files)
-    return f"python -m pytest -rA --tb=no -p no:cacheprovider {files}"
+    # sympy's Docker images ship no pytest (sympy has its own bin/test), so
+    # install it into the testbed env before running the tests.
+    return (
+        "python -m pip install -q pytest && "
+        f"python -m pytest -rA --tb=no -p no:cacheprovider {files}"
+    )
 
 
 def parse_sympy_outcomes(output: str) -> dict[str, str]:
@@ -160,3 +165,25 @@ def test_files_from_patch(test_patch: str) -> list[str]:
     for path in _PATCH_FILE.findall(test_patch):
         seen.setdefault(path.strip(), None)
     return list(seen)
+
+
+# --- helper: quarantine node ids that SWE-bench's own data pipeline corrupted.
+# Two kinds seen: parametrized ids truncated on whitespace (`test_x[w/ space]`
+# becomes the fragment `test_x[w/`, brackets no longer balanced), and pytest
+# progress markers like `[100%]` captured as if they were test ids. Either
+# matches no test and makes pytest abort the *entire* run, so both are filtered
+# out (and recorded).
+
+
+def split_malformed_ids(node_ids: list[str]) -> tuple[list[str], list[str]]:
+    """Split node ids into (valid, malformed).
+
+    Malformed = unbalanced square brackets (a truncated id) or a leading `[`
+    (a progress marker); no real node id of any runner looks like either.
+    """
+    valid: list[str] = []
+    malformed: list[str] = []
+    for nid in node_ids:
+        bad = nid.startswith("[") or nid.count("[") != nid.count("]")
+        (malformed if bad else valid).append(nid)
+    return valid, malformed

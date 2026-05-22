@@ -219,9 +219,14 @@ class DockerExecutor:
             raise OSError(result.stderr.strip() or path)
 
     def run(self, command: str, timeout: int = COMMAND_TIMEOUT) -> tuple[int, str, str]:
+        # Force UTF-8 for Python I/O: SWE-bench images often have no locale
+        # set, so Python defaults to ASCII and crashes on non-ASCII output
+        # (e.g. django prints a "…" while creating the test database).
+        prelude = "export PYTHONIOENCODING=utf-8"
         # Prepend the task's environment (e.g. a conda env) to PATH if set.
         if self.env_path:
-            command = f'export PATH="{self.env_path}:$PATH"\n{command}'
+            prelude += f'\nexport PATH="{self.env_path}:$PATH"'
+        command = f"{prelude}\n{command}"
         try:
             result = subprocess.run(
                 [

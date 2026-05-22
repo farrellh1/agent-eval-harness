@@ -22,7 +22,12 @@ from .agent import run_agent
 from .executor import DockerExecutor, LocalExecutor
 from .scorer import score_swebench, score_task
 from .swebench import DOCKER_PLATFORM, TESTBED_ENV_PATH, instance_image
-from .testspec import TestRun, test_files_from_patch, test_spec_for
+from .testspec import (
+    TestRun,
+    split_malformed_ids,
+    test_files_from_patch,
+    test_spec_for,
+)
 
 TEST_TIMEOUT = 600  # seconds, for running a SWE-bench task's graded tests
 
@@ -123,8 +128,11 @@ def run_swebench_task(
     the machine already had it - see DockerExecutor.
     """
     instance_id = task["instance_id"]
-    fail_to_pass = json.loads(task["FAIL_TO_PASS"])
-    pass_to_pass = json.loads(task["PASS_TO_PASS"])
+    # SWE-bench's dataset truncates some parametrized test ids; quarantine the
+    # malformed ones so they neither poison the test run nor skew the score.
+    fail_to_pass, ftp_bad = split_malformed_ids(json.loads(task["FAIL_TO_PASS"]))
+    pass_to_pass, ptp_bad = split_malformed_ids(json.loads(task["PASS_TO_PASS"]))
+    malformed_ids = ftp_bad + ptp_bad
     # How this repo's tests run and get scored - pytest for most, but django
     # and sympy need their own runner (see harness.testspec).
     spec = test_spec_for(task["repo"])
@@ -144,7 +152,7 @@ def run_swebench_task(
 
         # Apply the held-back grading tests, then run every graded test at once.
         ex.write_file("/tmp/test_patch.diff", task["test_patch"])
-        apply_rc = ex.run("git apply -v /tmp/test_patch.diff")[0]
+        apply_rc, _, apply_err = ex.run("git apply -v /tmp/test_patch.diff")
 
         test_files = test_files_from_patch(task["test_patch"])
         test_run = TestRun(fail_to_pass + pass_to_pass, test_files)
@@ -168,6 +176,8 @@ def run_swebench_task(
         "duration_s": round(time.time() - started, 1),
         "diff": agent_diff,
         "patch_applied": apply_rc == 0,
+        "patch_error": apply_err if apply_rc != 0 else "",
+        "malformed_ids": malformed_ids,
         "test_runner": spec.name,
         "score_detail": score.detail,
         "trace": agent.trace.to_list(),
