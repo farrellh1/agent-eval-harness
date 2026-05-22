@@ -73,6 +73,11 @@ class SweScore:
         return asdict(self)
 
 
+# Some repos force coloured test output, wrapping each line in ANSI escape
+# codes. Strip them before any line-anchored parsing, or a `^PASSED` regex
+# never matches a coloured "\x1b[32mPASSED".
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
 # pytest's `-rA` summary prints one line per test: "PASSED path::test_name".
 _OUTCOME_LINE = re.compile(r"^(PASSED|FAILED|ERROR|SKIPPED)\s+(\S+)", re.MULTILINE)
 
@@ -94,6 +99,7 @@ def score_swebench(
     `parse` turns raw test output into a {node id: outcome} map. It defaults to
     pytest's format; a repo with its own runner passes its own parser instead
     (see harness.testspec)."""
+    output = _ANSI.sub("", output)  # colour codes would break line-anchored parsers
     outcomes = parse(output)
 
     ftp = {t: outcomes.get(t) == "PASSED" for t in fail_to_pass}
