@@ -13,10 +13,8 @@ from pathlib import Path
 # SWE-bench images install task dependencies into this conda env, not base.
 TESTBED_ENV_PATH = "/opt/miniconda3/envs/testbed/bin"
 
-# SWE-bench publishes an x86_64 image for every instance; arm64 images cover
-# only a subset of tasks. We always use x86_64 so the whole corpus runs - on an
-# Apple-Silicon host Docker runs the image under emulation (slower wall-clock,
-# but the agent does the same work, so token cost is unchanged).
+# SWE-bench publishes an x86_64 image for every instance but arm64 for only
+# some, so always use x86_64 - on Apple Silicon it runs under emulation.
 IMAGE_ARCH = "x86_64"
 DOCKER_PLATFORM = "linux/amd64"
 

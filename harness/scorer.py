@@ -99,7 +99,7 @@ def score_swebench(
     `parse` turns raw test output into a {node id: outcome} map. It defaults to
     pytest's format; a repo with its own runner passes its own parser instead
     (see harness.testspec)."""
-    output = _ANSI.sub("", output)  # colour codes would break line-anchored parsers
+    output = _ANSI.sub("", output)
     outcomes = parse(output)
 
     ftp = {t: outcomes.get(t) == "PASSED" for t in fail_to_pass}

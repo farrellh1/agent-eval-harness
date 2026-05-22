@@ -111,12 +111,9 @@ class DockerExecutor:
         self.image = image
         self._workdir = workdir
         self.platform = platform
-        # Dir to prepend to PATH for every command, e.g. a conda env's bin.
-        # SWE-bench images install deps into a `testbed` env, not base.
+        # Prepended to PATH per command (SWE-bench deps live in a conda env).
         self.env_path = env_path
-        # If set, remove the image on exit - but only when this run pulled it
-        # (see __enter__). SWE-bench images are large; a long run would
-        # otherwise fill the disk.
+        # Removed on exit if this run pulled it - see __enter__.
         self.remove_image = remove_image
         self.container: str | None = None
         self._pulled_image = False
