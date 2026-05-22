@@ -55,3 +55,52 @@ def score_task(workdir: Path, test_command: str) -> Score:
 def _count(text: str, pattern: str) -> int:
     match = re.search(pattern, text)
     return int(match.group(1)) if match else 0
+
+
+@dataclass
+class SweScore:
+    """SWE-bench result: did the target tests pass without regressions?"""
+
+    resolved: bool  # all FAIL_TO_PASS green AND all PASS_TO_PASS still green
+    fail_to_pass: dict[str, bool]  # target test id -> passed
+    pass_to_pass_passed: int
+    pass_to_pass_total: int
+    score: float  # fraction of all graded tests passing (partial credit)
+    detail: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+# pytest's `-rA` summary prints one line per test: "PASSED path::test_name".
+_OUTCOME_LINE = re.compile(r"^(PASSED|FAILED|ERROR|SKIPPED)\s+(\S+)", re.MULTILINE)
+
+
+def parse_pytest_outcomes(output: str) -> dict[str, str]:
+    """Map each test node id to its outcome, from pytest `-rA` output."""
+    return {m.group(2): m.group(1) for m in _OUTCOME_LINE.finditer(output)}
+
+
+def score_swebench(
+    output: str, fail_to_pass: list[str], pass_to_pass: list[str]
+) -> SweScore:
+    """Grade a SWE-bench run the way SWE-bench does: every FAIL_TO_PASS test
+    must now pass, and every PASS_TO_PASS test must still pass."""
+    outcomes = parse_pytest_outcomes(output)
+
+    ftp = {t: outcomes.get(t) == "PASSED" for t in fail_to_pass}
+    ptp_passed = sum(outcomes.get(t) == "PASSED" for t in pass_to_pass)
+
+    resolved = all(ftp.values()) and ptp_passed == len(pass_to_pass)
+    graded = len(fail_to_pass) + len(pass_to_pass)
+    passed = sum(ftp.values()) + ptp_passed
+    score = passed / graded if graded else 0.0
+
+    return SweScore(
+        resolved=resolved,
+        fail_to_pass=ftp,
+        pass_to_pass_passed=ptp_passed,
+        pass_to_pass_total=len(pass_to_pass),
+        score=round(score, 3),
+        detail=output[-2000:],
+    )

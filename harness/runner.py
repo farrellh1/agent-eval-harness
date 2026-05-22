@@ -1,17 +1,17 @@
-"""The runner: turn a task directory into a scored result.
+"""The runner: execute a task and return a scored result record.
 
-Pipeline, per task:
-  1. copy workspace/ into an isolated temp workdir (the agent sees only this)
-  2. run the agent there
-  3. apply the held-back grading tests from tests/, then score
-  4. capture the agent's diff against the original buggy code
+Two task types, same shape of result:
+  - local toy task -> run_task          (LocalExecutor, held-back tests/)
+  - SWE-bench task -> run_swebench_task  (DockerExecutor, held-back test_patch)
 
-Returns a plain dict — the per-task record that goes into runs/*.json.
+Either way: the agent works in isolation, the grading tests are applied only
+after it stops, and the result is a plain dict for runs/*.json.
 """
 
 from __future__ import annotations
 
 import json
+import shlex
 import shutil
 import subprocess
 import sys
@@ -20,8 +20,11 @@ import time
 from pathlib import Path
 
 from .agent import run_agent
-from .executor import LocalExecutor
-from .scorer import score_task
+from .executor import DockerExecutor, LocalExecutor
+from .scorer import score_swebench, score_task
+from .swebench import TESTBED_ENV_PATH, docker_platform, instance_image
+
+TEST_TIMEOUT = 600  # seconds, for running a SWE-bench task's graded tests
 
 
 def load_task(task_dir: Path) -> dict:
@@ -105,3 +108,56 @@ def _diff(original: Path, workdir: Path, files: list[str]) -> str:
         if result.stdout:
             chunks.append(result.stdout)
     return "\n".join(chunks)
+
+
+def run_swebench_task(client, model: str, task: dict) -> dict:
+    """Run one SWE-bench task in its Docker container, end to end.
+
+    The agent works in /testbed (the repo at its base commit) with only the
+    problem statement. After it stops, the held-back grading tests (test_patch)
+    are applied and run - the agent never saw what scores it.
+    """
+    instance_id = task["instance_id"]
+    fail_to_pass = json.loads(task["FAIL_TO_PASS"])
+    pass_to_pass = json.loads(task["PASS_TO_PASS"])
+    started = time.time()
+
+    with DockerExecutor(
+        instance_image(instance_id),
+        workdir="/testbed",
+        platform=docker_platform(),
+        env_path=TESTBED_ENV_PATH,
+    ) as ex:
+        agent = run_agent(client, model, ex, task["problem_statement"])
+
+        # Capture the agent's patch before the grading tests touch the repo.
+        agent_diff = ex.run("git diff")[1]
+
+        # Apply the held-back grading tests, then run every graded test at once.
+        ex.write_file("/tmp/test_patch.diff", task["test_patch"])
+        apply_rc = ex.run("git apply -v /tmp/test_patch.diff")[0]
+
+        node_ids = " ".join(shlex.quote(t) for t in fail_to_pass + pass_to_pass)
+        test_cmd = f"python -m pytest -rA --tb=no -p no:cacheprovider {node_ids}"
+        _, out, err = ex.run(test_cmd, timeout=TEST_TIMEOUT)
+
+    score = score_swebench(out + err, fail_to_pass, pass_to_pass)
+
+    return {
+        "task_id": instance_id,
+        "passed": score.resolved,
+        "resolved": score.resolved,
+        "score": score.score,
+        "fail_to_pass": score.fail_to_pass,
+        "pass_to_pass_passed": score.pass_to_pass_passed,
+        "pass_to_pass_total": score.pass_to_pass_total,
+        "steps": agent.steps,
+        "completed": agent.completed,
+        "prompt_tokens": agent.prompt_tokens,
+        "completion_tokens": agent.completion_tokens,
+        "duration_s": round(time.time() - started, 1),
+        "diff": agent_diff,
+        "patch_applied": apply_rc == 0,
+        "score_detail": score.detail,
+        "trace": agent.trace.to_list(),
+    }

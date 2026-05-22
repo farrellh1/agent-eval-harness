@@ -36,7 +36,7 @@ class Executor(Protocol):
         """Write `content` to `path`, relative to the workdir."""
         ...
 
-    def run(self, command: str) -> tuple[int, str, str]:
+    def run(self, command: str, timeout: int = COMMAND_TIMEOUT) -> tuple[int, str, str]:
         """Run `command` in the workdir; return (exit_code, stdout, stderr)."""
         ...
 
@@ -70,7 +70,7 @@ class LocalExecutor:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content)
 
-    def run(self, command: str) -> tuple[int, str, str]:
+    def run(self, command: str, timeout: int = COMMAND_TIMEOUT) -> tuple[int, str, str]:
         # Put the harness's own interpreter dir first on PATH so `python` and
         # `pytest` resolve to the same environment the harness runs in.
         env = os.environ.copy()
@@ -85,11 +85,11 @@ class LocalExecutor:
                 capture_output=True,
                 shell=True,
                 text=True,
-                timeout=COMMAND_TIMEOUT,
+                timeout=timeout,
             )
             return result.returncode, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
-            return 124, "", f"command timed out after {COMMAND_TIMEOUT}s: {command}"
+            return 124, "", f"command timed out after {timeout}s: {command}"
 
 
 class DockerExecutor:
@@ -196,7 +196,7 @@ class DockerExecutor:
         if result.returncode != 0:
             raise OSError(result.stderr.strip() or path)
 
-    def run(self, command: str) -> tuple[int, str, str]:
+    def run(self, command: str, timeout: int = COMMAND_TIMEOUT) -> tuple[int, str, str]:
         # Prepend the task's environment (e.g. a conda env) to PATH if set.
         if self.env_path:
             command = f'export PATH="{self.env_path}:$PATH"\n{command}'
@@ -214,8 +214,8 @@ class DockerExecutor:
                 ],
                 capture_output=True,
                 text=True,
-                timeout=COMMAND_TIMEOUT,
+                timeout=timeout,
             )
             return result.returncode, result.stdout, result.stderr
         except subprocess.TimeoutExpired:
-            return 124, "", f"command timed out after {COMMAND_TIMEOUT}s: {command}"
+            return 124, "", f"command timed out after {timeout}s: {command}"

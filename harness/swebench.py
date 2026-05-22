@@ -11,6 +11,9 @@ import json
 import platform
 from pathlib import Path
 
+# SWE-bench images install task dependencies into this conda env, not base.
+TESTBED_ENV_PATH = "/opt/miniconda3/envs/testbed/bin"
+
 
 def host_arch() -> str:
     """SWE-bench's architecture token for this machine."""
