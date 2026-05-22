@@ -30,7 +30,7 @@ OUT = Path(__file__).parent / "swe_bench_verified_subset.jsonl"
 
 
 def main() -> None:
-    ds = load_dataset("princeton-nlp/SWE-bench_Verified", split="test")
+    ds = load_dataset("SWE-bench/SWE-bench_Verified", split="test")
 
     by_repo: dict[str, list[dict]] = defaultdict(list)
     for row in ds:
