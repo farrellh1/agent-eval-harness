@@ -11,7 +11,7 @@ broad task, and one whose **solution is pasted verbatim into the prompt**.
 Those are defects in the *gold-standard* benchmark. A score is only as
 trustworthy as the task behind it — so this harness checks both.
 
-**▶ Live dashboard:** **https://dashboard-phi-woad-35.vercel.app**
+**▶ Live dashboard:** **https://eval-harness.farrellh.dev**
 — every run, every agent trace, every audit flag.
 
 ## Results
