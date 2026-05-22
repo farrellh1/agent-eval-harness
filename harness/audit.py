@@ -50,10 +50,21 @@ def _check_broken_tests(task: dict) -> Flag | None:
     _, malformed = split_malformed_ids(ids)
     if not malformed:
         return None
+    truncated = [m for m in malformed if not m.startswith("[")]
+    markers = [m for m in malformed if m.startswith("[")]
+    if truncated and not markers:
+        cause = (
+            f"SWE-bench's log parser truncated them at a space, e.g. {truncated[0]!r}"
+        )
+    elif markers and not truncated:
+        cause = f"pytest progress-bar output was captured as a test id: {markers[0]!r}"
+    else:
+        cause = "ids truncated at a space, and pytest progress markers"
     return Flag(
         "broken-tests",
-        f"{len(malformed)} of {len(ids)} test ids are corrupt "
-        f"(truncated or progress markers): {malformed}",
+        f"{len(malformed)} of {len(ids)} test ids are corrupt - {cause}. "
+        "pytest aborts the whole run on an unknown id, so the task would "
+        "falsely score 0; the harness quarantines them before scoring.",
     )
 
 
@@ -63,8 +74,10 @@ def _check_broad(task: dict) -> Flag | None:
         return None
     return Flag(
         "broad",
-        f"{n} FAIL_TO_PASS tests - a focused bug fix rarely flips this many; "
-        "the task is a sweeping change or mis-scoped",
+        f"{n} FAIL_TO_PASS tests, where a normal task flips only one or two. "
+        "A focused bug fix does not turn hundreds of tests green; a pass here "
+        "reflects a sweeping change, and a partial score is dominated by test "
+        "volume rather than the fix.",
     )
 
 
@@ -90,8 +103,9 @@ def _check_contaminated(task: dict) -> Flag | None:
         return None
     return Flag(
         "contaminated",
-        f"the problem statement contains {len(leaked)} line(s) of the gold "
-        f"solution, e.g. {leaked[0]!r} - the agent can copy the answer",
+        f"the problem statement quotes the gold fix verbatim: {leaked[0]!r}. "
+        "A pass here shows the agent can copy a line from the prompt, not that "
+        "it can solve the bug.",
     )
 
 

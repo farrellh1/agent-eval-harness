@@ -1,6 +1,6 @@
 {
   "corpus": "swe_bench_verified_subset.jsonl",
-  "audited_at": "2026-05-22T22:44:05",
+  "audited_at": "2026-05-22T23:43:54",
   "tasks_total": 25,
   "tasks_flagged": 5,
   "profile": {
@@ -39,7 +39,7 @@
       "flags": [
         {
           "category": "broad",
-          "detail": "438 FAIL_TO_PASS tests - a focused bug fix rarely flips this many; the task is a sweeping change or mis-scoped"
+          "detail": "438 FAIL_TO_PASS tests, where a normal task flips only one or two. A focused bug fix does not turn hundreds of tests green; a pass here reflects a sweeping change, and a partial score is dominated by test volume rather than the fix."
         }
       ]
     },
@@ -60,7 +60,7 @@
       "flags": [
         {
           "category": "broken-tests",
-          "detail": "2 of 412 test ids are corrupt (truncated or progress markers): ['lib/matplotlib/tests/test_axes.py::test_stem[png-w/', 'lib/matplotlib/tests/test_axes.py::test_stem[png-w/o']"
+          "detail": "2 of 412 test ids are corrupt - SWE-bench's log parser truncated them at a space, e.g. 'lib/matplotlib/tests/test_axes.py::test_stem[png-w/'. pytest aborts the whole run on an unknown id, so the task would falsely score 0; the harness quarantines them before scoring."
         }
       ]
     },
@@ -109,7 +109,7 @@
       "flags": [
         {
           "category": "broken-tests",
-          "detail": "3 of 64 test ids are corrupt (truncated or progress markers): ['testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip.py-1', 'testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_class.py-1', 'testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip_module.py-1']"
+          "detail": "3 of 64 test ids are corrupt - SWE-bench's log parser truncated them at a space, e.g. 'testing/test_unittest.py::test_setup_inheritance_skipping[test_setup_skip.py-1'. pytest aborts the whole run on an unknown id, so the task would falsely score 0; the harness quarantines them before scoring."
         }
       ]
     },
@@ -118,7 +118,7 @@
       "flags": [
         {
           "category": "broken-tests",
-          "detail": "1 of 109 test ids are corrupt (truncated or progress markers): ['[100%]']"
+          "detail": "1 of 109 test ids are corrupt - pytest progress-bar output was captured as a test id: '[100%]'. pytest aborts the whole run on an unknown id, so the task would falsely score 0; the harness quarantines them before scoring."
         }
       ]
     },
@@ -131,7 +131,7 @@
       "flags": [
         {
           "category": "contaminated",
-          "detail": "the problem statement contains 1 line(s) of the gold solution, e.g. \"elif not hasattr(estimator, 'get_params') or isinstance(estimator, type):\" - the agent can copy the answer"
+          "detail": "the problem statement quotes the gold fix verbatim: \"elif not hasattr(estimator, 'get_params') or isinstance(estimator, type):\". A pass here shows the agent can copy a line from the prompt, not that it can solve the bug."
         }
       ]
     },
